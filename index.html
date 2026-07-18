@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827"><title>점포 보고서 확인 Vision</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f4f6;color:#111827;font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+header{position:sticky;top:0;z-index:4;padding:15px;background:#111827;color:white}h1{font-size:19px;margin:0}.sub{font-size:12px;color:#cbd5e1;margin-top:4px}
+main{max-width:1100px;margin:auto;padding:12px}.card{background:white;border-radius:14px;padding:13px;margin-bottom:12px;box-shadow:0 1px 5px #0001}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px}label{font-size:13px;font-weight:800}input,select,textarea,button{font:inherit}
+input[type=date],select,textarea{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:9px;background:white}
+.upload{border:2px dashed #93c5fd;background:#eff6ff;text-align:center;border-radius:12px;padding:18px;margin-top:10px}.file{display:inline-block;padding:12px 16px;background:#2563eb;color:#fff;border-radius:10px;font-weight:900}.file input{display:none}
+button{border:0;border-radius:9px;padding:10px 13px;font-weight:800}.dark{background:#111827;color:#fff}.gray{background:#e5e7eb}.red{background:#fee2e2;color:#991b1b}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.progress{height:10px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-top:12px}.bar{width:0;height:100%;background:#2563eb}.status{font-size:13px;margin-top:8px;white-space:pre-wrap}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.metric{text-align:center;background:#f9fafb;padding:9px;border-radius:9px}.metric b{display:block;font-size:21px}
+.wrap{overflow:auto;max-height:62vh;border:1px solid #ddd;border-radius:10px}table{border-collapse:collapse;width:100%;min-width:680px}th,td{padding:9px;border-bottom:1px solid #e5e7eb;text-align:center;font-size:13px}th{position:sticky;top:0;background:#f9fafb}.name{text-align:left;font-weight:800}.ok{color:#15803d;font-weight:900}.no{color:#dc2626;font-weight:900}.done{background:#f0fdf4}.missing{background:#fff7ed}
+.log{background:#111827;color:#d1fae5;border-radius:9px;padding:10px;white-space:pre-wrap;font:12px ui-monospace,monospace;max-height:190px;overflow:auto}
+.small{font-size:12px;color:#6b7280}
+</style></head>
+<body>
+<header><h1>점포 보고서 제출 확인 · Vision</h1><div class="sub">사진은 서버에서 분석하며 API 키는 휴대폰에 저장되지 않습니다.</div></header>
+<main>
+<section class="card">
+<div class="controls">
+<div><label>날짜</label><input id="date" type="date"></div>
+<div><label>구분</label><select id="session"><option>오전</option><option>오후</option><option>전체</option></select></div>
+</div>
+<div class="upload">
+<b>보고서 사진 여러 장 선택</b><br><span class="small">종류와 순서가 섞여 있어도 한 장씩 자동 분석합니다.</span><br><br>
+<label class="file">사진 선택<input id="files" type="file" accept="image/*" multiple></label>
+</div>
+<div class="progress"><div id="bar" class="bar"></div></div><div id="status" class="status">대기 중</div>
+</section>
+
+<section class="card">
+<div class="summary">
+<div class="metric">전체<b>58</b></div><div class="metric">완료<b id="done">0</b></div>
+<div class="metric">미완료<b id="miss">58</b></div><div class="metric">처리 사진<b id="count">0</b></div>
+</div>
+<div class="btns"><button id="copyMissing" class="dark">누락 목록 복사</button><button id="copyAll" class="gray">전체 표 복사</button><button id="reset" class="red">현재 기록 초기화</button></div>
+</section>
+
+<section class="card"><div class="wrap"><table><thead><tr><th>점번</th><th>점포명</th><th>사업주</th><th>실행평가</th><th>목표와달성</th><th>최고달성</th><th>상태</th></tr></thead><tbody id="tbody"></tbody></table></div></section>
+<section class="card"><b>처리 기록</b><div id="log" class="log">아직 처리한 사진이 없습니다.</div></section>
+</main>
+<script>
+const STORES=[["12", "신월점", "신동헌"], ["22", "신제주", "방명수"], ["25", "오라점", "박상기"], ["57", "제주점", "오한샘"], ["64", "고양시청", "길진오"], ["75", "역곡점", "김현우"], ["86", "송우점", "윤재영"], ["110", "개봉점", "이태영"], ["119", "양주시청점", "신동호"], ["122", "송추점", "김정민"], ["195", "마곡점", "임현수"], ["201", "영등포", "나민수"], ["212", "김포공항점", "이홍근"], ["219", "가양점", "김현호"], ["225", "종암점", "민세일"], ["235", "서의정부", "김완동"], ["244", "만가대", "최승현"], ["248", "양주덕정점", "정민혁"], ["272", "화전점", "신동헌"], ["274", "서강대교점", "이의성"], ["308", "목동점", "김도윤"], ["309", "일산점", "조민석"], ["326", "의정부IC점", "윤범채"], ["375", "파주점", "문희성"], ["377", "포천시청", "홍상수"], ["381", "포천점", "유현종"], ["391", "상봉점", "이의수"], ["401", "능곡점", "정은석"], ["414", "동두천점", "박중연"], ["422", "전곡점", "김민성"], ["447", "철원포천점", "이상민"], ["450", "서울장안점", "동현"], ["482", "문산파주점", "구대현"], ["489", "별내점", "김상준"], ["491", "별내700개점", "최준영"], ["512", "동서귀포", "김현구"], ["513", "서서귀포", "김정석"], ["530", "서강대교2점", "이의성"], ["559", "통일로점", "나준수"], ["560", "고양삼송점", "이환준"], ["562", "북고양점", "오준석"], ["569", "서일산점", "문수현"], ["579", "고양스타필드점", "조현식"], ["580", "탄현점", "이동호"], ["598", "진접점", "금동길"], ["606", "동의정부점", "이채현"], ["609", "내촌IC점", "장규상"], ["613", "서별내점", "조철민"], ["624", "태릉갈매점", "홍현수"], ["626", "일산덕이점", "지윤수"], ["632", "성산일출", "조광래"], ["633", "노형점", "김성준"], ["644", "고양성석점", "김동현"], ["645", "일산운정점", "이강일"], ["646", "파주금촌점", "나병철"], ["653", "진건점", "신남지"], ["706", "구파발점", "김민수"], ["657", "고양창릉점", "양희성"]].map(x=>({no:x[0],name:x[1],owner:x[2]}));
+let logs=[],processed=0;
+const $=x=>document.getElementById(x);
+function key(){return `vision-report:${$("date").value}:${$("session").value}`}
+function blank(){return Object.fromEntries(STORES.map(s=>[s.no,{eval:false,goal:false,best:false}]))}
+function load(){try{return JSON.parse(localStorage.getItem(key()))||blank()}catch{return blank()}}
+function save(x){localStorage.setItem(key(),JSON.stringify(x))}
+function render(){
+ const st=load();let done=0,miss=0,html="";
+ for(const s of STORES){const r=st[s.no]||{eval:false,goal:false,best:false};const ok=r.eval&&r.goal&&r.best;ok?done++:miss++;
+ const m=[!r.eval&&"실행평가",!r.goal&&"목표와달성",!r.best&&"최고달성"].filter(Boolean);
+ html+=`<tr class="${ok?"done":"missing"}"><td>${s.no}</td><td class=name>${s.name}</td><td>${s.owner}</td><td class="${r.eval?"ok":"no"}">${r.eval?"✅":"❌"}</td><td class="${r.goal?"ok":"no"}">${r.goal?"✅":"❌"}</td><td class="${r.best?"ok":"no"}">${r.best?"✅":"❌"}</td><td>${ok?"완료":m.join(", ")+" 누락"}</td></tr>`}
+ $("tbody").innerHTML=html;$("done").textContent=done;$("miss").textContent=miss;$("count").textContent=processed;$("log").textContent=logs.length?logs.join("\n"):"아직 처리한 사진이 없습니다."
+}
+async function resizeDataURL(file){
+ const bmp=await createImageBitmap(file),max=1800,scale=Math.min(1,max/Math.max(bmp.width,bmp.height));
+ const c=document.createElement("canvas");c.width=Math.round(bmp.width*scale);c.height=Math.round(bmp.height*scale);
+ c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);bmp.close();return c.toDataURL("image/jpeg",.82)
+}
+async function analyze(file){
+ const image=await resizeDataURL(file);
+ const res=await fetch("/api/analyze",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({image,filename:file.name})});
+ const data=await res.json();if(!res.ok)throw new Error(data.error||`서버 오류 ${res.status}`);return data
+}
+$("files").onchange=async e=>{
+ const files=[...e.target.files];if(!files.length)return;
+ for(let i=0;i<files.length;i++){
+   $("status").textContent=`${i+1}/${files.length} ${files[i].name} 분석 중…`;
+   $("bar").style.width=`${Math.round(i/files.length*100)}%`;
+   try{
+     const r=await analyze(files[i]);processed++;
+     if(r.store_no&&r.report_type){
+       const st=load();st[r.store_no][r.report_type]=true;save(st);
+       const s=STORES.find(x=>x.no===r.store_no);
+       logs.unshift(`${new Date().toLocaleTimeString()} ${files[i].name} → ${s?.name||r.store_name} / ${r.report_label} (${Math.round((r.confidence||0)*100)}%)`);
+     }else logs.unshift(`${new Date().toLocaleTimeString()} ${files[i].name} → 판별 실패: ${r.reason||"알 수 없음"}`);
+   }catch(err){logs.unshift(`${new Date().toLocaleTimeString()} ${files[i].name} → 오류: ${err.message}`)}
+   render()
+ }
+ $("bar").style.width="100%";$("status").textContent=`완료: ${files.length}장 처리`;e.target.value="";
+};
+function copy(t){navigator.clipboard.writeText(t).then(()=>$("status").textContent="복사했습니다.")}
+$("copyMissing").onclick=()=>{const st=load(),a=[`${$("date").value} ${$("session").value} 누락 목록`];for(const s of STORES){const r=st[s.no],m=[!r.eval&&"실행평가",!r.goal&&"목표와달성",!r.best&&"최고달성"].filter(Boolean);if(m.length)a.push(`${s.no} ${s.name} (${s.owner}) - ${m.join(", ")}`)}copy(a.join("\n"))}
+$("copyAll").onclick=()=>{const st=load(),a=["점번\t점포명\t사업주\t실행평가\t목표와달성\t최고달성"];for(const s of STORES){const r=st[s.no];a.push([s.no,s.name,s.owner,r.eval?"O":"X",r.goal?"O":"X",r.best?"O":"X"].join("\t"))}copy(a.join("\n"))}
+$("reset").onclick=()=>{if(confirm("현재 날짜 기록을 초기화할까요?")){localStorage.removeItem(key());processed=0;logs=[];render()}}
+$("date").onchange=render;$("session").onchange=render;$("date").value=new Date().toISOString().slice(0,10);render();
+</script></body></html>
